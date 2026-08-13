@@ -28,7 +28,7 @@ dependencies = [
   "monai>=1.4",
   "nibabel>=5.0",
   "numpy>=1.23",
-  "torch>=2.0",
+  "torch>=2.13.0",
 ]
 
 [project.scripts]
