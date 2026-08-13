@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
   "monai>=1.4",
   "nibabel>=5.0",
-  "numpy>=1.23",
+  "numpy>=2.2.6",
   "torch>=2.0",
 ]
 
