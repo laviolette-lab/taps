@@ -30,14 +30,11 @@ jobs:
           name: coverage-xml
           path: ${{ github.workspace }}/coverage.xml
 
-      - name: Upload coverage report to Codecov
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v4
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          fail_ci_if_error: true
-          files: ${{ github.workspace }}/coverage.xml
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: laviolette-lab/taps
 
       - name: Skip Codecov upload (no token)
         if: ${{ secrets.CODECOV_TOKEN == '' }}
