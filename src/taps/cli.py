@@ -11,7 +11,7 @@ from taps.inference import segment
 def build_parser() -> argparse.ArgumentParser:
     """Build the TAPS command-line parser."""
     parser = argparse.ArgumentParser(
-        prog="TAPS",
+        prog="taps",
         description="Segment prostate MRI scans using the TAPS model.",
     )
     parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")

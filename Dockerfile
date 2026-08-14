@@ -20,14 +20,14 @@ ENV HATCH_ENV=default
 ENTRYPOINT ["hatch", "run"]
 
 FROM base AS dev
-COPY requirements/ requirements/
 COPY requirements.txt ./
 COPY tests/ tests/
 COPY docs/ docs/
 COPY mkdocs.yml ./
 RUN pip3 install --no-cache-dir hatch \
     && hatch build \
-    && pip3 install --no-cache-dir $(find /app -name 'requirement*.txt' -exec echo -n '-r {} ' \;)
+    && pip3 install --no-cache-dir uv \
+    && uv pip install --system --no-deps "$(python -c 'import tomllib; print(tomllib.load(open(\"pyproject.toml\", \"rb\"))[\"project\"][\"dependencies\"])')"
 USER vscode
 
 FROM base AS prod
@@ -36,4 +36,4 @@ RUN pip3 install --no-cache-dir /tmp/*.whl \
     && rm -rf /tmp/*.whl
 USER vscode
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import python_template" || exit 1
+    CMD python -c "import taps" || exit 1

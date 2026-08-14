@@ -1,4 +1,5 @@
-site_name: Python Template
+site_name: TAPS
+repo_url: https://github.com/laviolette-lab/taps
 theme:
   name: material
   palette:

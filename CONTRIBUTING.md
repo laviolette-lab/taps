@@ -7,8 +7,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 1. **Clone the repository:**
 
    ```console
-   git clone https://github.com/LavLabInfrastructure/python-template.git
-   cd python-template
+   git clone https://github.com/laviolette-lab/taps.git
+   cd taps
    ```
 
 2. **Install Hatch** (build & environment manager):
@@ -52,8 +52,8 @@ All project tasks are managed through [Hatch environments](https://hatch.pypa.io
 
 This project follows a **library-first** design:
 
-1. **Library modules** (`src/python_template/`) contain all business logic as importable functions and classes.
-2. **CLI** (`src/python_template/cli.py`) is a thin wrapper that parses arguments and delegates to library functions.
+1. **Library modules** (`src/taps/`) contain all business logic as importable functions and classes.
+2. **CLI** (`src/taps/cli.py`) is a thin wrapper that parses arguments and delegates to library functions.
 3. **Tests** (`tests/`) import directly from the library — never from the CLI.
 
 When adding new functionality:
@@ -70,9 +70,9 @@ When adding new functionality:
 - Aim for descriptive test names that explain what is being verified.
 
 ```python
-def test_example_returns_input_unchanged():
-    """Verify the example function passes through its argument."""
-    assert example("hello") == "hello"
+def test_resolve_checkpoint_uses_bundled_model_by_default():
+    """Verify resolve_checkpoint falls back to the packaged model."""
+    assert resolve_checkpoint(None).name == "model_v1.pth"
 ```
 
 ## Submitting Changes
@@ -109,10 +109,10 @@ The project includes multi-stage Docker builds:
 ```console
 # Build and run tests via Docker
 docker build --target hatch -t myapp:hatch .
-docker run --rm -e HATCH_ENV=test myapp:hatch cov
+docker run --rm -e HATCH_ENV=test taps:hatch cov
 
 # Build production image
-docker build --target prod -t myapp:prod .
+docker build --target prod -t taps:prod .
 ```
 
 ## Questions?
