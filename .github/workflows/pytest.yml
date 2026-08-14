@@ -33,10 +33,5 @@ jobs:
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
-          slug: laviolette-lab/taps
-        secrets:
           token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Skip Codecov upload (no token)
-        if: ${{ secrets.CODECOV_TOKEN == '' }}
-        run: echo "Skipping Codecov — CODECOV_TOKEN not set."
+          slug: laviolette-lab/taps
