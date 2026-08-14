@@ -14,12 +14,20 @@ def build_parser() -> argparse.ArgumentParser:
         prog="taps",
         description="Segment prostate MRI scans using the TAPS model.",
     )
-    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "-V", "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    segment_parser = subparsers.add_parser("segment", help="Create a prostate segmentation mask.")
-    segment_parser.add_argument("image", help="Input MRI NIfTI image (.nii or .nii.gz).")
-    segment_parser.add_argument("output", help="Output segmentation NIfTI path (.nii or .nii.gz).")
+    segment_parser = subparsers.add_parser(
+        "segment", help="Create a prostate segmentation mask."
+    )
+    segment_parser.add_argument(
+        "image", help="Input MRI NIfTI image (.nii or .nii.gz)."
+    )
+    segment_parser.add_argument(
+        "output", help="Output segmentation NIfTI path (.nii or .nii.gz)."
+    )
     segment_parser.add_argument(
         "--checkpoint",
         default=None,

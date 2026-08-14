@@ -101,14 +101,19 @@ def segment(
     if not str(output_path).endswith((".nii", ".nii.gz")):
         raise ValueError("Output path must end in .nii or .nii.gz")
 
-    torch_device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    torch_device = torch.device(
+        device or ("cuda" if torch.cuda.is_available() else "cpu")
+    )
     preprocess = build_preprocessing()
     data = cast(dict[Hashable, Any], preprocess({"image": str(image_path)}))
     model = load_model(checkpoint, torch_device)
 
     image = data["image"].unsqueeze(0).to(torch_device)
-    with torch.no_grad(), torch.amp.autocast(
-        device_type=torch_device.type, enabled=torch_device.type == "cuda"
+    with (
+        torch.no_grad(),
+        torch.amp.autocast(
+            device_type=torch_device.type, enabled=torch_device.type == "cuda"
+        ),
     ):
         logits = sliding_window_inference(
             image,
