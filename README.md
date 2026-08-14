@@ -8,6 +8,8 @@
 
 TAPS deploys a trained prostate MRI segmentation model as a Python package and command-line application. It accepts a NIfTI image and writes a binary NIfTI mask aligned with the original input image.
 
+See https://github.com/laviolette-lab/TAPS-Training-Code for the original training code used to create this model and write the paper.
+
 ## Install
 
 ```console
