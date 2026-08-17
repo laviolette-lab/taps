@@ -20,6 +20,7 @@ from monai.transforms.post.dictionary import Invertd
 from monai.transforms.spatial.dictionary import Orientationd, Spacingd
 from monai.transforms.utility.dictionary import EnsureChannelFirstd, EnsureTyped
 from monai.networks.layers import GaussianFilter
+import onnxruntime as ort
 
 VOXEL_SPACING = (0.8, 0.8, 3.0)
 ROI_SIZE = (128, 128, 32)
@@ -30,17 +31,27 @@ MAX_PROSTATE_VOLUME_CC = 55.0
 MIN_GEOMETRY_EXTENT_MM = 10.0
 MAX_GEOMETRY_EXTENT_MM = 150.0
 
-def get_optimal_sw_batch_size(device: torch.device) -> int:
-    """Dynamically sets sliding window batch size based on available VRAM."""
-    if device.type == "cuda":
-        total_mem_gb = torch.cuda.get_device_properties(device).total_memory / (1024**3)
-        if total_mem_gb >= 20: return 24
-        elif total_mem_gb >= 12: return 16
-        elif total_mem_gb >= 8: return 8
-        elif total_mem_gb >= 4: return 4
-        else: return 2
-    return 4
+class ONNXPredictor:
+    def __init__(self, model_path: Path, device: str):
+        options = ort.SessionOptions()
+        options.log_severity_level = 3 
+        
+        if device.startswith("cuda"):
+            providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        elif device == "mps":
+            providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+        else:
+            providers = ["CPUExecutionProvider"]
+            
+        self.session = ort.InferenceSession(str(model_path), sess_options=options, providers=providers)
+        self.input_name = self.session.get_inputs()[0].name
 
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        # x is already on the CPU now, so .numpy() is instant
+        ort_outs = self.session.run(None, {self.input_name: x.numpy()})
+        # Return a CPU tensor for MONAI to stitch
+        return torch.from_numpy(ort_outs[0])
+    
 class BlankMaskError(RuntimeError):
     """Raised after a segmentation produces no foreground voxels."""
 
@@ -98,7 +109,7 @@ def resolve_checkpoint(checkpoint: str | Path | None) -> Path:
     if checkpoint is not None:
         return Path(checkpoint)
 
-    bundled_checkpoint = Path(__file__).resolve().parent / "resources" / "model_v1.pth"
+    bundled_checkpoint = Path(__file__).resolve().parent / "resources" / "model_v1.onnx"
     if bundled_checkpoint.is_file():
         return bundled_checkpoint
 
@@ -284,33 +295,38 @@ def segment(
         raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
     if not str(output_path).endswith((".nii", ".nii.gz")):
         raise ValueError("Output path must end in .nii or .nii.gz")
-
+    
+    # 1. Determine the best available hardware
     if device is None:
         if torch.cuda.is_available():
-            default_device = "cuda"
+            target_device = "cuda"
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            default_device = "mps"
+            target_device = "mps"
         else:
-            default_device = "cpu"
+            target_device = "cpu"
     else:
-        default_device = device
+        target_device = device
         
-    torch_device = torch.device(default_device)
+    torch_device = torch.device(target_device)
     preprocess = build_preprocessing()
     data = cast(dict[Hashable, Any], preprocess({"image": str(image_path)}))
-    model = load_model(checkpoint, torch_device)
+    
+    torch_device = torch.device("cpu")
+    
+    # Initialize ONNX with the actual target hardware (e.g., "mps" or "cuda")
+    # You can pass "mps" directly here since you are on a Mac
+    model = ONNXPredictor(resolve_checkpoint(checkpoint), device=target_device) 
 
-    image = data["image"].unsqueeze(0).to(torch_device)
-    with (
-        torch.inference_mode(),
-        torch.amp.autocast(device_type=torch_device.type, enabled=torch_device.type == "cuda"),
-    ):
+    # Keep the image on the CPU!
+    image = data["image"].unsqueeze(0)
+    
+    with torch.inference_mode():
         logits = sliding_window_inference(
             image,
             roi_size=ROI_SIZE,
-            sw_batch_size=get_optimal_sw_batch_size(torch_device),
+            sw_batch_size=1,
             predictor=model,
-            overlap=0.5,
+            overlap=0.25,
             mode="gaussian",
         )
 
