@@ -31,6 +31,10 @@ taps segment input_image.nii.gz prostate_mask.nii.gz \
 	--checkpoint best_segresnet_model.pth --device cpu
 ```
 
+The output is checked for volume, geometry, border contact, slice continuity, enclosed holes, and connected components. Abnormal results are written with an `_abnormal` suffix. Use `--exact` to keep the requested output name. Slices with multiple 2D components also produce a `_cleaned` mask with those slices blanked.
+
+If the inferred mask is completely blank, TAPS does not write an output and exits with status `1`.
+
 The package applies the validation preprocessing pipeline, performs sliding-window inference, then restores the prediction to the source image's voxel space before saving it.
 
 ## Python API

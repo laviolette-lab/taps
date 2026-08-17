@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from taps.__about__ import __version__
-from taps.inference import segment
+from taps.inference import BlankMaskError, segment
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +37,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--device",
         help="Torch device to use, such as cuda, cuda:0, or cpu. Defaults to CUDA when available.",
     )
+    segment_parser.add_argument(
+        "--exact",
+        action="store_true",
+        help="Use the requested output path even when QC finds an abnormality.",
+    )
     return parser
 
 
@@ -44,7 +49,13 @@ def main(argv: list[str] | None = None) -> int:
     """Run the TAPS command-line interface."""
     args = build_parser().parse_args(argv)
     if args.command == "segment":
-        output_path = segment(args.image, args.output, args.checkpoint, args.device)
+        try:
+            output_path = segment(
+                args.image, args.output, args.checkpoint, args.device, args.exact
+            )
+        except BlankMaskError as error:
+            print(f"Error: {error}")
+            return 1
         print(f"Saved segmentation to {output_path}")
         return 0
     return 1

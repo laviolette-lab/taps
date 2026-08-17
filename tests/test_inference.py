@@ -1,8 +1,18 @@
 """Tests for TAPS inference utilities."""
 
+import nibabel as nib
+import numpy as np
 import pytest
 
-from taps.inference import resolve_checkpoint, segment
+from taps.inference import (
+    _run_qc,
+    _warn_border_contact,
+    _warn_geometry,
+    _warn_holes,
+    _warn_slice_continuity,
+    resolve_checkpoint,
+    segment,
+)
 
 
 def test_resolve_checkpoint_returns_explicit_path(tmp_path):
@@ -44,3 +54,86 @@ def test_segment_raises_for_invalid_output_suffix(tmp_path):
 
     with pytest.raises(ValueError, match="must end in"):
         segment(image, tmp_path / "out.txt", checkpoint)
+
+
+def test_qc_marks_abnormal_volume_and_keeps_largest_component(tmp_path, capsys):
+    """QC warns on volume/components and writes an abnormal output suffix."""
+    mask = np.zeros((10, 10, 3), dtype=np.uint8)
+    mask[:3, :3, :2] = 1
+    mask[8:, 8:, :2] = 1
+    output = tmp_path / "mask.nii.gz"
+    affine = np.diag([1, 1, 1, 1])
+
+    cleaned, abnormal, selected_output = _run_qc(mask, affine, output, exact=False)
+
+    assert abnormal is True
+    assert cleaned.sum() == 18
+    assert selected_output == tmp_path / "mask_abnormal.nii.gz"
+    captured = capsys.readouterr().out
+    assert "outside the expected" in captured
+    assert "disconnected 3D components" in captured
+
+
+def test_qc_blanks_multi_component_slices_and_writes_cleaned_mask(tmp_path, capsys):
+    """QC writes a cleaned NIfTI when a slice has multiple components."""
+    mask = np.zeros((10, 10, 2), dtype=np.uint8)
+    mask[1:3, 1:3, 0] = 1
+    mask[7:9, 7:9, 0] = 1
+    output = tmp_path / "mask.nii.gz"
+
+    _, abnormal, selected_output = _run_qc(
+        mask, np.diag([3, 3, 3, 1]), output, exact=False
+    )
+
+    cleaned_path = tmp_path / "mask_cleaned.nii.gz"
+    assert abnormal is True
+    assert selected_output == tmp_path / "mask_abnormal.nii.gz"
+    assert cleaned_path.is_file()
+    assert np.count_nonzero(nib.load(cleaned_path).get_fdata()) == 0
+    assert "multiple 2D components" in capsys.readouterr().out
+
+
+def test_qc_exact_does_not_append_abnormal(tmp_path):
+    """Exact mode leaves the requested output name unchanged."""
+    mask = np.ones((3, 3, 3), dtype=np.uint8)
+    output = tmp_path / "mask.nii.gz"
+
+    _, abnormal, selected_output = _run_qc(
+        mask, np.diag([1, 1, 1, 1]), output, exact=True
+    )
+
+    assert abnormal is True
+    assert selected_output == output
+    assert not (tmp_path / "mask_abnormal.nii.gz").exists()
+
+
+def test_qc_warns_for_border_contact():
+    """QC detects foreground touching the image boundary."""
+    mask = np.zeros((4, 4, 4), dtype=np.uint8)
+    mask[0, 1:3, 1:3] = 1
+
+    assert _warn_border_contact(mask) is True
+
+
+def test_qc_warns_for_slice_gaps_and_isolated_runs():
+    """QC detects gaps and one-slice runs in the occupied slice indices."""
+    mask = np.zeros((4, 4, 6), dtype=np.uint8)
+    mask[1:3, 1:3, 0] = 1
+    mask[1:3, 1:3, 2:4] = 1
+
+    assert _warn_slice_continuity(mask) is True
+
+
+def test_qc_warns_for_enclosed_holes():
+    """QC detects background enclosed by foreground."""
+    mask = np.ones((5, 5, 5), dtype=np.uint8)
+    mask[2, 2, 2] = 0
+
+    assert _warn_holes(mask) is True
+
+
+def test_qc_warns_for_implausible_geometry():
+    """QC detects a physically implausible mask extent."""
+    mask = np.ones((2, 2, 2), dtype=np.uint8)
+
+    assert _warn_geometry(mask, np.diag([1, 1, 1, 1])) is True
