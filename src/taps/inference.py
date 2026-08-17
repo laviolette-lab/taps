@@ -285,7 +285,7 @@ def segment(
             mode="gaussian",
         )
 
-    data["pred"] = (torch.sigmoid(logits[0]) > 05).to(torch.float32).cpu()
+    data["pred"] = (torch.sigmoid(logits[0]) > 0.65).to(torch.float32).cpu()
     inverted = Invertd(
         keys="pred",
         transform=preprocess,
