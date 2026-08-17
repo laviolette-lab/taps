@@ -22,6 +22,8 @@ from monai.transforms.utility.dictionary import EnsureChannelFirstd, EnsureTyped
 
 VOXEL_SPACING = (0.8, 0.8, 3.0)
 ROI_SIZE = (128, 128, 32)
+DEFAULT_SIGMA = 2.5
+DEFAULT_PROBABILITY_THRESHOLD = 0.55
 MIN_PROSTATE_VOLUME_CC = 20.0
 MAX_PROSTATE_VOLUME_CC = 55.0
 MIN_GEOMETRY_EXTENT_MM = 10.0
@@ -70,6 +72,21 @@ def load_model(checkpoint: str | Path, device: torch.device) -> SegResNetDS:
     model.load_state_dict(clean_state_dict)
     model.eval()
     return model
+
+
+def gaussian_blur_logits(
+    logits: torch.Tensor, sigma: float = DEFAULT_SIGMA
+) -> torch.Tensor:
+    """Apply Gaussian blur to the spatial logits while leaving batch/channel dims unchanged."""
+    if sigma <= 0.0 or logits.ndim != 5:
+        return logits
+
+    blurred = ndimage.gaussian_filter(
+        logits.detach().cpu().numpy(),
+        sigma=(0.0, 0.0, sigma, sigma, sigma),
+        mode="nearest",
+    )
+    return torch.as_tensor(blurred, dtype=logits.dtype, device=logits.device)
 
 
 def resolve_checkpoint(checkpoint: str | Path | None) -> Path:
@@ -242,6 +259,9 @@ def segment(
     checkpoint: str | Path | None,
     device: str | None = None,
     exact: bool = False,
+    *,
+    sigma: float = DEFAULT_SIGMA,
+    threshold: float = DEFAULT_PROBABILITY_THRESHOLD,
 ) -> Path:
     """Segment a prostate MRI and write a binary NIfTI mask in native image space.
 
@@ -250,6 +270,8 @@ def segment(
     :param checkpoint: Path to a TAPS SegResNetDS checkpoint.
     :param device: Torch device override. Defaults to CUDA when available.
     :param exact: Keep the requested output path even when QC finds an abnormality.
+    :param sigma: Gaussian blur applied to logits before thresholding.
+    :param threshold: Foreground probability threshold used for the final mask.
     :return: The written output path.
     """
     image_path = Path(image_path)
@@ -285,7 +307,8 @@ def segment(
             mode="gaussian",
         )
 
-    data["pred"] = (torch.sigmoid(logits[0]) > 0.65).to(torch.float32).cpu()
+    blurred_logits = gaussian_blur_logits(logits, sigma=sigma)
+    data["pred"] = (torch.sigmoid(blurred_logits[0]) > threshold).to(torch.float32).cpu()
     inverted = Invertd(
         keys="pred",
         transform=preprocess,

@@ -3,16 +3,31 @@
 import nibabel as nib
 import numpy as np
 import pytest
+import torch
 
 from taps.inference import (
+    DEFAULT_PROBABILITY_THRESHOLD,
+    DEFAULT_SIGMA,
     _run_qc,
     _warn_border_contact,
     _warn_geometry,
     _warn_holes,
     _warn_slice_continuity,
+    gaussian_blur_logits,
     resolve_checkpoint,
     segment,
 )
+
+
+def test_default_postprocessing_matches_optimized_settings():
+    """The packaged model defaults should match the optimized blur/threshold settings."""
+    logits = torch.tensor([[[[0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0]]]])
+
+    assert DEFAULT_SIGMA == 2.5
+    assert DEFAULT_PROBABILITY_THRESHOLD == 0.55
+    blurred = gaussian_blur_logits(logits)
+    assert blurred.shape == logits.shape
+    assert torch.isfinite(blurred).all()
 
 
 def test_resolve_checkpoint_returns_explicit_path(tmp_path):

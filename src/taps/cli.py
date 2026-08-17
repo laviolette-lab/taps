@@ -5,7 +5,12 @@ from __future__ import annotations
 import argparse
 
 from taps.__about__ import __version__
-from taps.inference import BlankMaskError, segment
+from taps.inference import (
+    DEFAULT_PROBABILITY_THRESHOLD,
+    DEFAULT_SIGMA,
+    BlankMaskError,
+    segment,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,6 +47,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use the requested output path even when QC finds an abnormality.",
     )
+    segment_parser.add_argument(
+        "--sigma",
+        type=float,
+        default=DEFAULT_SIGMA,
+        help="Gaussian blur sigma applied to logits before probability thresholding.",
+    )
+    segment_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=DEFAULT_PROBABILITY_THRESHOLD,
+        help="Probability threshold used to convert blurred logits to a binary mask.",
+    )
     return parser
 
 
@@ -51,7 +68,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "segment":
         try:
             output_path = segment(
-                args.image, args.output, args.checkpoint, args.device, args.exact
+                args.image,
+                args.output,
+                args.checkpoint,
+                args.device,
+                args.exact,
+                sigma=args.sigma,
+                threshold=args.threshold,
             )
         except BlankMaskError as error:
             print(f"Error: {error}")
