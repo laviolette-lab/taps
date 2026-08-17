@@ -19,6 +19,7 @@ from monai.transforms.io.dictionary import LoadImaged
 from monai.transforms.post.dictionary import Invertd
 from monai.transforms.spatial.dictionary import Orientationd, Spacingd
 from monai.transforms.utility.dictionary import EnsureChannelFirstd, EnsureTyped
+from monai.networks.layers import GaussianFilter
 
 VOXEL_SPACING = (0.8, 0.8, 3.0)
 ROI_SIZE = (128, 128, 32)
@@ -29,6 +30,16 @@ MAX_PROSTATE_VOLUME_CC = 55.0
 MIN_GEOMETRY_EXTENT_MM = 10.0
 MAX_GEOMETRY_EXTENT_MM = 150.0
 
+def get_optimal_sw_batch_size(device: torch.device) -> int:
+    """Dynamically sets sliding window batch size based on available VRAM."""
+    if device.type == "cuda":
+        total_mem_gb = torch.cuda.get_device_properties(device).total_memory / (1024**3)
+        if total_mem_gb >= 20: return 24
+        elif total_mem_gb >= 12: return 16
+        elif total_mem_gb >= 8: return 8
+        elif total_mem_gb >= 4: return 4
+        else: return 2
+    return 4
 
 class BlankMaskError(RuntimeError):
     """Raised after a segmentation produces no foreground voxels."""
@@ -66,10 +77,7 @@ def load_model(checkpoint: str | Path, device: torch.device) -> SegResNetDS:
     """Load a TAPS checkpoint, including checkpoints saved from compiled models."""
     model = build_model(device)
     state_dict = torch.load(checkpoint, map_location=device, weights_only=True)
-    clean_state_dict = {
-        key.removeprefix("_orig_mod."): value for key, value in state_dict.items()
-    }
-    model.load_state_dict(clean_state_dict)
+    model.load_state_dict(state_dict)
     model.eval()
     return model
 
@@ -77,16 +85,12 @@ def load_model(checkpoint: str | Path, device: torch.device) -> SegResNetDS:
 def gaussian_blur_logits(
     logits: torch.Tensor, sigma: float = DEFAULT_SIGMA
 ) -> torch.Tensor:
-    """Apply Gaussian blur to the spatial logits while leaving batch/channel dims unchanged."""
+    """Apply Gaussian blur natively on the GPU."""
     if sigma <= 0.0 or logits.ndim != 5:
         return logits
 
-    blurred = ndimage.gaussian_filter(
-        logits.detach().cpu().numpy(),
-        sigma=(0.0, 0.0, sigma, sigma, sigma),
-        mode="nearest",
-    )
-    return torch.as_tensor(blurred, dtype=logits.dtype, device=logits.device)
+    blur_filter = GaussianFilter(spatial_dims=3, sigma=sigma).to(logits.device)
+    return blur_filter(logits)
 
 
 def resolve_checkpoint(checkpoint: str | Path | None) -> Path:
@@ -124,7 +128,7 @@ def _clean_slice_components(mask: np.ndarray) -> tuple[np.ndarray, int]:
     cleaned = mask.copy()
     abnormal_slices = 0
     for slice_index in range(mask.shape[2]):
-        labels, count = ndimage.label(
+        _, count = ndimage.label(
             mask[:, :, slice_index] > 0, structure=np.ones((3, 3))
         )
         if count > 1:
@@ -281,24 +285,30 @@ def segment(
     if not str(output_path).endswith((".nii", ".nii.gz")):
         raise ValueError("Output path must end in .nii or .nii.gz")
 
-    torch_device = torch.device(
-        device or ("cuda" if torch.cuda.is_available() else "cpu")
-    )
+    if device is None:
+        if torch.cuda.is_available():
+            default_device = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            default_device = "mps"
+        else:
+            default_device = "cpu"
+    else:
+        default_device = device
+        
+    torch_device = torch.device(default_device)
     preprocess = build_preprocessing()
     data = cast(dict[Hashable, Any], preprocess({"image": str(image_path)}))
     model = load_model(checkpoint, torch_device)
 
     image = data["image"].unsqueeze(0).to(torch_device)
     with (
-        torch.no_grad(),
-        torch.amp.autocast(
-            device_type=torch_device.type, enabled=torch_device.type == "cuda"
-        ),
+        torch.inference_mode(),
+        torch.amp.autocast(device_type=torch_device.type, enabled=torch_device.type == "cuda"),
     ):
         logits = sliding_window_inference(
             image,
             roi_size=ROI_SIZE,
-            sw_batch_size=4,
+            sw_batch_size=get_optimal_sw_batch_size(torch_device),
             predictor=model,
             overlap=0.5,
             mode="gaussian",
