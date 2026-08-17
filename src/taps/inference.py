@@ -152,8 +152,7 @@ def _warn_geometry(mask: np.ndarray, affine: np.ndarray) -> bool:
 
     extent_mm = (occupied.max(axis=0) - occupied.min(axis=0) + 1) * spacing
     if np.any(
-        (extent_mm < MIN_GEOMETRY_EXTENT_MM)
-        | (extent_mm > MAX_GEOMETRY_EXTENT_MM)
+        (extent_mm < MIN_GEOMETRY_EXTENT_MM) | (extent_mm > MAX_GEOMETRY_EXTENT_MM)
     ):
         formatted_extent = ", ".join(f"{extent:.1f}" for extent in extent_mm)
         print(
@@ -242,9 +241,7 @@ def _run_qc(
         )
         cleaned_path = _with_suffix(output_path, "_cleaned")
         cleaned_path.parent.mkdir(parents=True, exist_ok=True)
-        nib.save(
-            nib.Nifti1Image(slice_cleaned & cleaned_mask, affine), cleaned_path
-        )
+        nib.save(nib.Nifti1Image(slice_cleaned & cleaned_mask, affine), cleaned_path)
         print(f"Saved cleaned segmentation to {cleaned_path}")
         abnormal = True
 
@@ -308,7 +305,9 @@ def segment(
         )
 
     blurred_logits = gaussian_blur_logits(logits, sigma=sigma)
-    data["pred"] = (torch.sigmoid(blurred_logits[0]) > threshold).to(torch.float32).cpu()
+    data["pred"] = (
+        (torch.sigmoid(blurred_logits[0]) > threshold).to(torch.float32).cpu()
+    )
     inverted = Invertd(
         keys="pred",
         transform=preprocess,

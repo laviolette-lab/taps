@@ -9,7 +9,17 @@ def test_segment_command_delegates_to_library(monkeypatch, capsys):
     calls = []
 
     def fake_segment(image, output, checkpoint, device, exact, **kwargs):
-        calls.append((image, output, checkpoint, device, exact, kwargs["sigma"], kwargs["threshold"]))
+        calls.append(
+            (
+                image,
+                output,
+                checkpoint,
+                device,
+                exact,
+                kwargs["sigma"],
+                kwargs["threshold"],
+            )
+        )
         return output
 
     monkeypatch.setattr(cli, "segment", fake_segment)
@@ -38,7 +48,17 @@ def test_segment_command_uses_bundled_checkpoint_by_default(monkeypatch, capsys)
     calls = []
 
     def fake_segment(image, output, checkpoint, device, exact, **kwargs):
-        calls.append((image, output, checkpoint, device, exact, kwargs["sigma"], kwargs["threshold"]))
+        calls.append(
+            (
+                image,
+                output,
+                checkpoint,
+                device,
+                exact,
+                kwargs["sigma"],
+                kwargs["threshold"],
+            )
+        )
         return output
 
     monkeypatch.setattr(cli, "segment", fake_segment)
@@ -46,9 +66,7 @@ def test_segment_command_uses_bundled_checkpoint_by_default(monkeypatch, capsys)
     exit_code = cli.main(["segment", "scan.nii.gz", "mask.nii.gz", "--device", "cpu"])
 
     assert exit_code == 0
-    assert calls == [
-        ("scan.nii.gz", "mask.nii.gz", None, "cpu", False, 2.5, 0.55)
-    ]
+    assert calls == [("scan.nii.gz", "mask.nii.gz", None, "cpu", False, 2.5, 0.55)]
     assert "Saved segmentation to mask.nii.gz" in capsys.readouterr().out
 
 
