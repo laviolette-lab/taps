@@ -71,7 +71,7 @@ def test_segment_raises_for_invalid_output_suffix(tmp_path):
         segment(image, tmp_path / "out.txt", checkpoint)
 
 
-def test_qc_marks_abnormal_volume_and_keeps_largest_component(tmp_path, capsys):
+def test_qc_marks_abnormal_volume_and_keeps_largest_component(tmp_path, caplog):
     """QC warns on volume/components and writes an abnormal output suffix."""
     mask = np.zeros((10, 10, 3), dtype=np.uint8)
     mask[:3, :3, :2] = 1
@@ -84,12 +84,11 @@ def test_qc_marks_abnormal_volume_and_keeps_largest_component(tmp_path, capsys):
     assert abnormal is True
     assert cleaned.sum() == 18
     assert selected_output == tmp_path / "mask_abnormal.nii.gz"
-    captured = capsys.readouterr().out
-    assert "outside the expected" in captured
-    assert "disconnected 3D components" in captured
+    assert "outside the expected" in caplog.text
+    assert "disconnected 3D components" in caplog.text
 
 
-def test_qc_blanks_multi_component_slices_and_writes_cleaned_mask(tmp_path, capsys):
+def test_qc_blanks_multi_component_slices_and_writes_cleaned_mask(tmp_path, caplog):
     """QC writes a cleaned NIfTI when a slice has multiple components."""
     mask = np.zeros((10, 10, 2), dtype=np.uint8)
     mask[1:3, 1:3, 0] = 1
@@ -105,7 +104,7 @@ def test_qc_blanks_multi_component_slices_and_writes_cleaned_mask(tmp_path, caps
     assert selected_output == tmp_path / "mask_abnormal.nii.gz"
     assert cleaned_path.is_file()
     assert np.count_nonzero(nib.load(cleaned_path).get_fdata()) == 0
-    assert "multiple 2D components" in capsys.readouterr().out
+    assert "multiple 2D components" in caplog.text
 
 
 def test_qc_exact_does_not_append_abnormal(tmp_path):

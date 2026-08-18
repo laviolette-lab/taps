@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 from taps.__about__ import __version__
 from taps.inference import (
@@ -11,6 +12,9 @@ from taps.inference import (
     BlankMaskError,
     segment,
 )
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()])
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -77,8 +81,8 @@ def main(argv: list[str] | None = None) -> int:
                 threshold=args.threshold,
             )
         except BlankMaskError as error:
-            print(f"Error: {error}")
+            logger.error("Error: %s", error)
             return 1
-        print(f"Saved segmentation to {output_path}")
+        logger.info("Saved segmentation to %s", output_path)
         return 0
     return 1

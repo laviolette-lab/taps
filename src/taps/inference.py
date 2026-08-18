@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Hashable
 from pathlib import Path
 from typing import Any, cast
@@ -19,8 +20,12 @@ from monai.transforms.io.dictionary import LoadImaged
 from monai.transforms.post.dictionary import Invertd
 from monai.transforms.spatial.dictionary import Orientationd, Spacingd
 from monai.transforms.utility.dictionary import EnsureChannelFirstd, EnsureTyped
-from monai.networks.layers import GaussianFilter
+from monai.networks.layers.simplelayers import GaussianFilter
 import onnxruntime as ort
+
+logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()])
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 VOXEL_SPACING = (0.8, 0.8, 3.0)
 ROI_SIZE = (128, 128, 32)
@@ -151,7 +156,7 @@ def _clean_slice_components(mask: np.ndarray) -> tuple[np.ndarray, int]:
 def _warn_geometry(mask: np.ndarray, affine: np.ndarray) -> bool:
     """Warn when mask geometry or physical extents are implausible."""
     if mask.ndim != 3 or affine.shape != (4, 4):
-        print("Warning: segmentation has invalid mask or affine geometry.")
+        logger.warning("Warning: segmentation has invalid mask or affine geometry.")
         return True
 
     spacing = np.linalg.norm(affine[:3, :3], axis=0)
@@ -162,7 +167,7 @@ def _warn_geometry(mask: np.ndarray, affine: np.ndarray) -> bool:
         or not np.all(np.isfinite(affine))
         or occupied.size == 0
     ):
-        print("Warning: segmentation has invalid voxel geometry.")
+        logger.warning("Warning: segmentation has invalid voxel geometry.")
         return True
 
     extent_mm = (occupied.max(axis=0) - occupied.min(axis=0) + 1) * spacing
@@ -170,7 +175,7 @@ def _warn_geometry(mask: np.ndarray, affine: np.ndarray) -> bool:
         (extent_mm < MIN_GEOMETRY_EXTENT_MM) | (extent_mm > MAX_GEOMETRY_EXTENT_MM)
     ):
         formatted_extent = ", ".join(f"{extent:.1f}" for extent in extent_mm)
-        print(
+        logger.warning(
             f"Warning: segmentation physical extent ({formatted_extent} mm) "
             "is outside the expected 10-150 mm range."
         )
@@ -186,7 +191,7 @@ def _warn_border_contact(mask: np.ndarray) -> bool:
         for face in (np.take(mask > 0, 0, axis), np.take(mask > 0, -1, axis))
     )
     if touches_border:
-        print("Warning: segmentation touches the image border.")
+        logger.warning("Warning: segmentation touches the image border.")
     return touches_border
 
 
@@ -198,12 +203,12 @@ def _warn_slice_continuity(mask: np.ndarray) -> bool:
     gaps = np.diff(occupied_slices)
     has_gap = bool(np.any(gaps > 1))
     if has_gap:
-        print("Warning: segmentation has gaps between occupied slices.")
+        logger.warning("Warning: segmentation has gaps between occupied slices.")
 
     runs = np.split(occupied_slices, np.flatnonzero(gaps > 1) + 1)
     has_isolated_slice = any(run.size == 1 for run in runs)
     if has_isolated_slice:
-        print("Warning: segmentation contains isolated occupied slices.")
+        logger.warning("Warning: segmentation contains isolated occupied slices.")
     return has_gap or has_isolated_slice
 
 
@@ -211,7 +216,7 @@ def _warn_holes(mask: np.ndarray) -> bool:
     """Warn when foreground encloses one or more background regions."""
     holes = ndimage.binary_fill_holes(mask > 0) & ~(mask > 0)
     if np.any(holes):
-        print(
+        logger.warning(
             f"Warning: segmentation contains {int(ndimage.label(holes)[1])} "
             "enclosed hole(s)."
         )
@@ -234,7 +239,7 @@ def _run_qc(
     abnormal |= _warn_slice_continuity(mask)
     abnormal |= _warn_holes(mask)
     if not MIN_PROSTATE_VOLUME_CC <= volume_cc <= MAX_PROSTATE_VOLUME_CC:
-        print(
+        logger.warning(
             f"Warning: prostate volume {volume_cc:.1f} cc is outside "
             f"the expected {MIN_PROSTATE_VOLUME_CC:.0f}-{MAX_PROSTATE_VOLUME_CC:.0f} cc range."
         )
@@ -242,7 +247,7 @@ def _run_qc(
 
     cleaned_mask, component_count = _largest_component(mask)
     if component_count > 1:
-        print(
+        logger.warning(
             f"Warning: segmentation contains {component_count} disconnected "
             "3D components; keeping the largest component."
         )
@@ -250,14 +255,14 @@ def _run_qc(
 
     slice_cleaned, abnormal_slices = _clean_slice_components(mask)
     if abnormal_slices:
-        print(
+        logger.warning(
             f"Warning: segmentation contains multiple 2D components in "
             f"{abnormal_slices} slice(s); writing a cleaned mask."
         )
         cleaned_path = _with_suffix(output_path, "_cleaned")
         cleaned_path.parent.mkdir(parents=True, exist_ok=True)
         nib.save(nib.Nifti1Image(slice_cleaned & cleaned_mask, affine), cleaned_path)
-        print(f"Saved cleaned segmentation to {cleaned_path}")
+        logger.info("Saved cleaned segmentation to %s", cleaned_path)
         abnormal = True
 
     if abnormal and not exact:
