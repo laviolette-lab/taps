@@ -49,6 +49,7 @@ path = "src/taps/__about__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/taps"]
 force-include = { "src/taps/resources/model_v1.onnx" = "taps/resources/model_v1.onnx" }
+exclude = ["src/taps/resources/model_v1.pth"]
 
 [tool.hatch.env]
 requires = ["uv"]
