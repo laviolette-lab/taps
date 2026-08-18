@@ -41,7 +41,7 @@ def test_resolve_checkpoint_falls_back_to_bundled_model():
     """With no override, the bundled checkpoint is used."""
     bundled = resolve_checkpoint(None)
 
-    assert bundled.name == "model_v1.pth"
+    assert bundled.name == "model_v1.onnx"
     assert bundled.is_file()
 
 
