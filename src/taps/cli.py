@@ -12,9 +12,9 @@ from taps.inference import (
     BlankMaskError,
     segment,
 )
-
-logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()])
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def build_parser() -> argparse.ArgumentParser:
