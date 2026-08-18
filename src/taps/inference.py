@@ -336,7 +336,19 @@ def segment(
             mode="gaussian",
         )
 
-    blurred_logits = gaussian_blur_logits(logits, sigma=sigma)
+    data["pred"] = logits[0]
+    inverted_logits = Invertd(
+        keys="pred",
+        transform=preprocess,
+        orig_keys="image",
+        meta_keys="pred_meta_dict",
+        orig_meta_keys="image_meta_dict",
+        nearest_interp=False,
+        to_tensor=True,
+    )(data)
+
+    native_logits = inverted_logits["pred"].unsqueeze(0)
+    blurred_logits = gaussian_blur_logits(native_logits, sigma=sigma)
     data["pred"] = (
         (torch.sigmoid(blurred_logits[0]) > threshold).to(torch.float32).cpu()
     )
