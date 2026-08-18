@@ -9,9 +9,10 @@ from typing import Any, cast
 
 import nibabel as nib
 import numpy as np
+import onnxruntime as ort
 import torch
-from scipy import ndimage
 from monai.inferers.utils import sliding_window_inference
+from monai.networks.layers.simplelayers import GaussianFilter
 from monai.networks.nets.segresnet_ds import SegResNetDS
 from monai.transforms.compose import Compose
 from monai.transforms.croppad.dictionary import CropForegroundd
@@ -20,10 +21,11 @@ from monai.transforms.io.dictionary import LoadImaged
 from monai.transforms.post.dictionary import Invertd
 from monai.transforms.spatial.dictionary import Orientationd, Spacingd
 from monai.transforms.utility.dictionary import EnsureChannelFirstd, EnsureTyped
-from monai.networks.layers.simplelayers import GaussianFilter
-import onnxruntime as ort
+from scipy import ndimage
 
-logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()])
+logging.basicConfig(
+    level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()]
+)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -36,19 +38,22 @@ MAX_PROSTATE_VOLUME_CC = 55.0
 MIN_GEOMETRY_EXTENT_MM = 10.0
 MAX_GEOMETRY_EXTENT_MM = 150.0
 
+
 class ONNXPredictor:
     def __init__(self, model_path: Path, device: str):
         options = ort.SessionOptions()
-        options.log_severity_level = 3 
-        
+        options.log_severity_level = 3
+
         if device.startswith("cuda"):
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
         elif device == "mps":
             providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
         else:
             providers = ["CPUExecutionProvider"]
-            
-        self.session = ort.InferenceSession(str(model_path), sess_options=options, providers=providers)
+
+        self.session = ort.InferenceSession(
+            str(model_path), sess_options=options, providers=providers
+        )
         self.input_name = self.session.get_inputs()[0].name
 
     def __call__(self, x: torch.Tensor) -> torch.Tensor:
@@ -56,7 +61,8 @@ class ONNXPredictor:
         ort_outs = self.session.run(None, {self.input_name: x.numpy()})
         # Return a CPU tensor for MONAI to stitch
         return torch.from_numpy(ort_outs[0])
-    
+
+
 class BlankMaskError(RuntimeError):
     """Raised after a segmentation produces no foreground voxels."""
 
@@ -144,9 +150,7 @@ def _clean_slice_components(mask: np.ndarray) -> tuple[np.ndarray, int]:
     cleaned = mask.copy()
     abnormal_slices = 0
     for slice_index in range(mask.shape[2]):
-        _, count = ndimage.label(
-            mask[:, :, slice_index] > 0, structure=np.ones((3, 3))
-        )
+        _, count = ndimage.label(mask[:, :, slice_index] > 0, structure=np.ones((3, 3)))
         if count > 1:
             cleaned[:, :, slice_index] = 0
             abnormal_slices += 1
@@ -300,7 +304,7 @@ def segment(
         raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
     if not str(output_path).endswith((".nii", ".nii.gz")):
         raise ValueError("Output path must end in .nii or .nii.gz")
-    
+
     # 1. Determine the best available hardware
     if device is None:
         if torch.cuda.is_available():
@@ -311,20 +315,17 @@ def segment(
             target_device = "cpu"
     else:
         target_device = device
-        
-    torch_device = torch.device(target_device)
+
     preprocess = build_preprocessing()
     data = cast(dict[Hashable, Any], preprocess({"image": str(image_path)}))
-    
-    torch_device = torch.device("cpu")
-    
+
     # Initialize ONNX with the actual target hardware (e.g., "mps" or "cuda")
     # You can pass "mps" directly here since you are on a Mac
-    model = ONNXPredictor(resolve_checkpoint(checkpoint), device=target_device) 
+    model = ONNXPredictor(resolve_checkpoint(checkpoint), device=target_device)
 
     # Keep the image on the CPU!
     image = data["image"].unsqueeze(0)
-    
+
     with torch.inference_mode():
         logits = sliding_window_inference(
             image,

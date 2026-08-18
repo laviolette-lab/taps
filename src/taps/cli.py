@@ -12,7 +12,10 @@ from taps.inference import (
     BlankMaskError,
     segment,
 )
-logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()])
+
+logging.basicConfig(
+    level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()]
+)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
