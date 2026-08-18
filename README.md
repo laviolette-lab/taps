@@ -28,7 +28,7 @@ TAPS uses the bundled checkpoint by default and selects CUDA automatically when 
 
 ```console
 taps segment input_image.nii.gz prostate_mask.nii.gz \
-	--checkpoint best_segresnet_model.pth --device cpu
+	--checkpoint best_segresnet_model.onnx --device cpu
 ```
 
 The output is checked for volume, geometry, border contact, slice continuity, enclosed holes, and connected components. Abnormal results are written with an `_abnormal` suffix. Use `--exact` to keep the requested output name. Slices with multiple 2D components also produce a `_cleaned` mask with those slices blanked.
@@ -61,7 +61,7 @@ taps/
 │       ├── inference.py         # Preprocessing, model loading & segmentation
 │       ├── py.typed             # PEP 561 marker
 │       └── resources/
-│           └── model_v1.pth     # Bundled checkpoint
+│           └── model_v1.onnx     # Bundled checkpoint
 ├── tests/
 ├── docs/                        # MkDocs source files
 └── pyproject.toml
