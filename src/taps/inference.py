@@ -15,21 +15,24 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-import nibabel as nib
-import numpy as np
-import onnxruntime as ort
-import torch
-from monai.data.meta_tensor import MetaTensor
-from monai.inferers.utils import sliding_window_inference
-from monai.networks.nets.segresnet_ds import SegResNetDS
-from monai.transforms.compose import Compose
-from monai.transforms.croppad.dictionary import CropForegroundd
-from monai.transforms.intensity.dictionary import NormalizeIntensityd
-from monai.transforms.io.dictionary import LoadImaged
-from monai.transforms.post.dictionary import Invertd
-from monai.transforms.spatial.dictionary import Orientationd, Spacingd
-from monai.transforms.utility.dictionary import EnsureChannelFirstd, EnsureTyped
-from scipy import ndimage
+import nibabel as nib  # noqa: E402
+import numpy as np  # noqa: E402
+import onnxruntime as ort  # noqa: E402
+import torch  # noqa: E402
+from monai.data.meta_tensor import MetaTensor  # noqa: E402
+from monai.inferers.utils import sliding_window_inference  # noqa: E402
+from monai.networks.nets.segresnet_ds import SegResNetDS  # noqa: E402
+from monai.transforms.compose import Compose  # noqa: E402
+from monai.transforms.croppad.dictionary import CropForegroundd  # noqa: E402
+from monai.transforms.intensity.dictionary import NormalizeIntensityd  # noqa: E402
+from monai.transforms.io.dictionary import LoadImaged  # noqa: E402
+from monai.transforms.post.dictionary import Invertd  # noqa: E402
+from monai.transforms.spatial.dictionary import Orientationd, Spacingd  # noqa: E402
+from monai.transforms.utility.dictionary import (  # noqa: E402
+    EnsureChannelFirstd,
+    EnsureTyped,
+)
+from scipy import ndimage  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", handlers=[logging.StreamHandler()]

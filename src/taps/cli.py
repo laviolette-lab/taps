@@ -13,8 +13,8 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-from taps.__about__ import __version__
-from taps.inference import (
+from taps.__about__ import __version__  # noqa: E402
+from taps.inference import (  # noqa: E402
     DEFAULT_PROBABILITY_THRESHOLD,
     DEFAULT_SIGMA,
     BlankMaskError,

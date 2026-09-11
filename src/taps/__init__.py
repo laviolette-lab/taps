@@ -9,7 +9,7 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-from taps.__about__ import __version__
-from taps.inference import segment
+from taps.__about__ import __version__  # noqa: E402
+from taps.inference import segment  # noqa: E402
 
 __all__ = ["__version__", "segment"]
