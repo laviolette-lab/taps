@@ -152,6 +152,6 @@ docstring-code-format = true
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 filterwarnings = [
-  "ignore:`torch.jit.interface` is deprecated:DeprecationWarning:torch.jit._script",
+  "ignore:.*`torch.jit.interface` is deprecated.*:DeprecationWarning",
 ]
 xfail_strict = true

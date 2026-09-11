@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Hashable
 from pathlib import Path
 from typing import Any, cast
+
+# Suppress upstream MONAI/PyTorch deprecation warning triggered on MONAI package scan
+warnings.filterwarnings(
+    "ignore",
+    message=r".*`torch\.jit\.interface` is deprecated.*",
+    category=DeprecationWarning,
+)
 
 import nibabel as nib
 import numpy as np
