@@ -11,8 +11,8 @@ import nibabel as nib
 import numpy as np
 import onnxruntime as ort
 import torch
+from monai.data.meta_tensor import MetaTensor
 from monai.inferers.utils import sliding_window_inference
-from monai.networks.layers.simplelayers import GaussianFilter
 from monai.networks.nets.segresnet_ds import SegResNetDS
 from monai.transforms.compose import Compose
 from monai.transforms.croppad.dictionary import CropForegroundd
@@ -107,12 +107,22 @@ def load_model(checkpoint: str | Path, device: torch.device) -> SegResNetDS:
 def gaussian_blur_logits(
     logits: torch.Tensor, sigma: float = DEFAULT_SIGMA
 ) -> torch.Tensor:
-    """Apply Gaussian blur natively on the GPU."""
+    """Apply Gaussian blur to the spatial logits while leaving batch/channel dims unchanged."""
     if sigma <= 0.0 or logits.ndim != 5:
         return logits
 
-    blur_filter = GaussianFilter(spatial_dims=3, sigma=sigma).to(logits.device)
-    return blur_filter(logits)
+    blurred_np = ndimage.gaussian_filter(
+        logits.detach().cpu().numpy(),
+        sigma=(0.0, 0.0, sigma, sigma, sigma),
+        mode="nearest",
+    )
+    if isinstance(logits, MetaTensor):
+        return MetaTensor(
+            torch.as_tensor(blurred_np, dtype=logits.dtype, device=logits.device),
+            meta=logits.meta,
+            applied_operations=logits.applied_operations,
+        )
+    return torch.as_tensor(blurred_np, dtype=logits.dtype, device=logits.device)
 
 
 def resolve_checkpoint(checkpoint: str | Path | None) -> Path:
@@ -332,12 +342,13 @@ def segment(
             roi_size=ROI_SIZE,
             sw_batch_size=1,
             predictor=model,
-            overlap=0.25,
+            overlap=0.5,
             mode="gaussian",
         )
 
-    data["pred"] = logits[0]
-    inverted_logits = Invertd(
+    blurred_logits = gaussian_blur_logits(logits, sigma=sigma)
+    data["pred"] = blurred_logits[0]
+    inverted = Invertd(
         keys="pred",
         transform=preprocess,
         orig_keys="image",
@@ -347,22 +358,9 @@ def segment(
         to_tensor=True,
     )(data)
 
-    native_logits = inverted_logits["pred"].unsqueeze(0)
-    blurred_logits = gaussian_blur_logits(native_logits, sigma=sigma)
-    data["pred"] = (
-        (torch.sigmoid(blurred_logits[0]) > threshold).to(torch.float32).cpu()
+    prediction = (
+        (torch.sigmoid(inverted["pred"][0]) > threshold).to(torch.uint8).cpu().numpy()
     )
-    inverted = Invertd(
-        keys="pred",
-        transform=preprocess,
-        orig_keys="image",
-        meta_keys="pred_meta_dict",
-        orig_meta_keys="image_meta_dict",
-        nearest_interp=True,
-        to_tensor=True,
-    )(data)
-
-    prediction = inverted["pred"].cpu().numpy()[0].astype(np.uint8)
     affine = np.asarray(inverted["pred"].meta["affine"])
     if not np.any(prediction):
         raise BlankMaskError("Inferred segmentation mask is blank")
