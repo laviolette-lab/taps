@@ -1,0 +1,19 @@
+{
+  "upload_type": "software",
+  "title": "TAPS",
+  "creators": [
+    {
+      "name": "barrettMCW"
+    }
+  ],
+  "description": "TAPS deploys a trained prostate T2 MRI segmentation model as a Python package and command-line application.",
+  "license": "mit",
+  "keywords": [
+    "medical imaging",
+    "prostate",
+    "segmentation",
+    "MRI",
+    "T2",
+    "deep learning"
+  ]
+}
