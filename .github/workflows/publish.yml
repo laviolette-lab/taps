@@ -17,6 +17,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version_file = Path("src/taps/__about__.py").read_text()
+          match = re.search(r'^__version__ = "([^"]+)"$', version_file, re.MULTILINE)
+          if match is None:
+              raise SystemExit("Could not read the package version from __about__.py")
+
+          expected_tag = f"v{match.group(1)}"
+          release_tag = os.environ["RELEASE_TAG"]
+          if release_tag != expected_tag:
+              raise SystemExit(
+                  f"Release tag {release_tag!r} does not match package version "
+                  f"{expected_tag!r}"
+              )
+          PY
+
       - name: Build Docker image (hatch stage)
         uses: docker/build-push-action@v4
         with:
