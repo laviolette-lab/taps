@@ -5,7 +5,7 @@
 [![Lint](https://github.com/laviolette-lab/taps/actions/workflows/lint.yml/badge.svg)](https://github.com/laviolette-lab/taps/actions/workflows/lint.yml)
 [![PyPI - Version](https://img.shields.io/pypi/v/lavlab-taps.svg)](https://pypi.org/project/lavlab-taps)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lavlab-taps.svg)](https://pypi.org/project/lavlab-taps)
-![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23318729.svg)
+[![DOI](https://zenodo.org/badge/1333407051.svg)](https://doi.org/10.5281/zenodo.23318728)
 
 TAPS deploys a trained prostate MRI segmentation model as a Python package and command-line application. It accepts a NIfTI image and writes a binary NIfTI mask aligned with the original input image.
 
